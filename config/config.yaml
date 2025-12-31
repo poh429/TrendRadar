@@ -80,30 +80,30 @@ rss:
   # - 正整数：覆盖全局设置，只推送此天数内的文章
   # - 0：禁用此频道的新鲜度过滤，推送所有文章
   feeds:
+    # 1. 鉅亨網 (使用 Google News Proxy 修復 ID)
     - id: "cnyes-tw"
       name: "鉅亨台股"
-      url: "https://news.cnyes.com/rss/cat/tw_stock"
+      # 原本的 RSS 容易 404，改用 Google News site:cnyes.com
+      url: "https://news.google.com/rss/search?q=site:cnyes.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
       max_age_days: 1
       
+    # 2. MoneyDJ (使用 Google News Proxy 修復 ID)
     - id: "moneydj"
       name: "MoneyDJ要聞"
-      url: "https://www.moneydj.com/KMDJ/rss/latestnews.aspx"
+      # 原本可能需要 auth 或格式不對，改用 Google News site:moneydj.com
+      url: "https://news.google.com/rss/search?q=site:moneydj.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
       max_age_days: 1
       
+    # 3. Yahoo 股市 (新增來源)
+    - id: "yahoo-tw"
+      name: "Yahoo股市"
+      url: "https://tw.stock.yahoo.com/rss?category=tw-market"
+      max_age_days: 1
+    # 4. 證交所公告 (保留原設定)
     - id: "twse"
       name: "證交所公告"
       url: "https://www.twse.com.tw/rss/zh/news.xml"
       max_age_days: 1
-      
-    - id: "hacker-news"
-      name: "Hacker News"
-      url: "https://hnrss.org/frontpage"
-      # max_age_days: 1               # 示例：只推送1天内的文章
-
-    - id: "ruanyifeng"
-      name: "阮一峰的网络日志"
-      url: "http://www.ruanyifeng.com/blog/atom.xml"
-      # max_age_days: 7               # 示例：推送7天内的文章（更新较慢的博客）
 
     # 自定义源示例
     # - id: "custom-feed"
