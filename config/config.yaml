@@ -80,6 +80,21 @@ rss:
   # - 正整数：覆盖全局设置，只推送此天数内的文章
   # - 0：禁用此频道的新鲜度过滤，推送所有文章
   feeds:
+    - id: "cnyes-tw"
+      name: "鉅亨台股"
+      url: "https://news.cnyes.com/rss/cat/tw_stock"
+      max_age_days: 1
+      
+    - id: "moneydj"
+      name: "MoneyDJ要聞"
+      url: "https://www.moneydj.com/KMDJ/rss/latestnews.aspx"
+      max_age_days: 1
+      
+    - id: "twse"
+      name: "證交所公告"
+      url: "https://www.twse.com.tw/rss/zh/news.xml"
+      max_age_days: 1
+      
     - id: "hacker-news"
       name: "Hacker News"
       url: "https://hnrss.org/frontpage"
