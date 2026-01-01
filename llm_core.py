@@ -8,7 +8,10 @@ import hashlib
 import sqlite3
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
-from ollama import Client
+try:
+    from ollama import Client
+except ImportError:
+    Client = None
 # Google GenAI SDK (v2.0 遷移至新版)
 try:
     from google import genai
