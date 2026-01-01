@@ -36,7 +36,6 @@ on:
     #   "30 0-14 * * *"  → 北京时间 8:00-22:00 每小时第30分钟 / Beijing 8am-10pm
     #
     - cron: "33 * * * *"
-
   workflow_dispatch:
 
 concurrency:
@@ -65,51 +64,27 @@ jobs:
         run: |
           WORKFLOW_FILE="crawler.yml"
           API_URL="repos/${{ github.repository }}/actions/workflows/$WORKFLOW_FILE/runs"
-
           TOTAL=$(gh api "$API_URL" --jq '.total_count')
           if [ -z "$TOTAL" ] || [ "$TOTAL" -eq 0 ]; then
             echo "No previous runs found, skipping expiration check"
             exit 0
           fi
-
           LAST_PAGE=$(( (TOTAL + 99) / 100 ))
           FIRST_RUN_DATE=$(gh api "$API_URL?per_page=100&page=$LAST_PAGE" --jq '.workflow_runs[-1].created_at')
-
           if [ -n "$FIRST_RUN_DATE" ]; then
             CURRENT_TIMESTAMP=$(date +%s)
             FIRST_RUN_TIMESTAMP=$(date -d "$FIRST_RUN_DATE" +%s)
             DIFF_SECONDS=$((CURRENT_TIMESTAMP - FIRST_RUN_TIMESTAMP))
             LIMIT_SECONDS=604800
-
             if [ $DIFF_SECONDS -gt $LIMIT_SECONDS ]; then
               echo "⚠️ 试用期已结束，请运行 'Check In' 签到续期"
-              echo "⚠️ Trial expired. Run 'Check In' to renew."
               gh workflow disable "$WORKFLOW_FILE"
               exit 1
             else
               DAYS_LEFT=$(( (LIMIT_SECONDS - DIFF_SECONDS) / 86400 ))
-              echo "✅ 试用期剩余 ${DAYS_LEFT} 天，到期前请运行 'Check In' 签到续期"
-              echo "✅ Trial: ${DAYS_LEFT} days left. Run 'Check In' before expiry to renew."
+              echo "✅ Trial: ${DAYS_LEFT} days left."
             fi
           fi
-
-
-      # --------------------------------------------------------------------------------
-      # 🚦 TRAFFIC CONTROL / 流量控制
-      # --------------------------------------------------------------------------------
-      # EN: Generates a random delay between 1 and 300 seconds (5 minutes).
-      #     Critical for load balancing.
-      #
-      # CN: 生成 1 到 300 秒（5分钟）之间的随机延迟。
-      #     这对负载均衡至关重要。
-      # - name: Random Delay (Traffic Control)
-      #   if: success()
-      #   run: |
-      #     echo "🎲 Traffic Control: Generating random delay..."
-      #     DELAY=$(( ( RANDOM % 300 )  + 1 ))
-      #     echo "⏸️  Sleeping for ${DELAY} seconds to spread the load..."
-      #     sleep ${DELAY}s
-      #     echo "▶️  Delay finished. Starting crawler..."
 
       - name: Set up Python
         if: success()
@@ -131,7 +106,6 @@ jobs:
             echo "Error: Config missing"
             exit 1
           fi
-
       - name: Run crawler
         if: success()
         env:
@@ -161,3 +135,22 @@ jobs:
           S3_REGION: ${{ secrets.S3_REGION }}
           GITHUB_ACTIONS: true
         run: python -m trendradar
+
+      # === [新增] AI News Filter Step ===
+      - name: Run AI Data Filter & Sync
+        if: success()
+        env:
+           # Supabase & AI Configuration
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+           
+           # R2 Config (使用與上方相同的 R2 Secrets)
+           S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+           S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+           
+        run: |
+           echo "Starting AI News Filter..."
+           python step39_news_filter.py
