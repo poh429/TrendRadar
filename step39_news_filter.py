@@ -1,4 +1,4 @@
-# --- step39_news_filter.py (Truly Standalone Version) ---
+# --- step39_news_filter.py (Truly Standalone Version v3.0) ---
 """
 Vestra Data Utility Engine - AI 新聞過濾與評分模組
 Standalone 版本：內建 AI 呼叫 + R2 下載邏輯，不依賴任何外部專案檔。
@@ -329,6 +329,27 @@ def analyze_news_item(title: str) -> Dict:
     except Exception as e:
         print(f"  > [AI Filter] 分析失敗: {e}")
         return None
+
+def init_investment_db():
+    """初始化本地投資新聞資料庫"""
+    conn = sqlite3.connect(INVESTMENT_DB)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_news (
+            original_id INTEGER,
+            platform_name TEXT,
+            title TEXT,
+            url TEXT,
+            score INTEGER,
+            category TEXT,
+            analysis TEXT,
+            crawl_time TEXT,
+            processed_at TEXT,
+            PRIMARY KEY (original_id, platform_name)
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 def process_latest_news():
     """主處理流程"""
