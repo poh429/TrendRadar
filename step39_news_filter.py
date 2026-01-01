@@ -1,20 +1,21 @@
-# --- step39_news_filter.py ---
+# --- step39_news_filter.py (Standalone Version) ---
 """
 Vestra Data Utility Engine - AI 新聞過濾與評分模組
-
-功能：
-1. 讀取 TrendRadar 同步下來的最新新聞資料庫。
-2. 透過 LLM (Gemini) 對標題進行投資價值度評分 (1-10) 與板塊歸類。
-3. 將處理後的高價值新聞存入本地投資資料庫中，供 Dashboard 使用。
-4. (可選) 同步高價值新聞至 Supabase，供 Lovable (Vestra) 前端使用。
+Standalone 版本：內建 AI 呼叫邏輯，不依賴 llm_core，避免 CI/CD 環境問題。
 """
 
 import sqlite3
 import os
 import json
+import requests
+import re
+import base64
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
-from llm_core import call_openrouter, initialize_services
+
+# 移除 llm_core 依賴
+# from llm_core import call_openrouter, initialize_services 
+
 try:
     from view_trendradar_news import download_from_r2
 except ImportError:
@@ -32,6 +33,40 @@ except ImportError:
 INVESTMENT_DB = "investment_news.db"
 DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
 MIN_SCORE_THRESHOLD = 5
+
+# ==================== 內建 AI 核心 (Mini) ====================
+def initialize_services():
+    """為了相容性保留，實際上不需要做太多事"""
+    pass
+
+def call_openrouter(model, messages, temperature=0.3):
+    """內建簡易版 OpenRouter Caller"""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        print("  > [AI] ❌ 缺少 OPENROUTER_API_KEY")
+        return None
+        
+    try:
+        res = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "HTTP-Referer": "http://localhost:8501",
+                "X-Title": "Vestra AI Filter"
+            },
+            json={"model": model, "messages": messages, "temperature": temperature},
+            timeout=60
+        )
+        
+        if res.status_code == 200: 
+            return res.json()['choices'][0]['message']['content']
+        else:
+            print(f"  > [AI] API Error: {res.text}")
+            return None
+    except Exception as e:
+        print(f"  > [AI] Request Limit or Error: {e}")
+        return None
+# ============================================================
 
 def init_investment_db():
     """初始化本地投資新聞資料庫"""
