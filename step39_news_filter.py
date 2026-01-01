@@ -104,8 +104,8 @@ def call_openrouter(model, messages, temperature=0.3):
             if res.status_code == 200: 
                 return res.json()['choices'][0]['message']['content']
             elif res.status_code == 429:
-                # 遇到限速，等待後重試
-                wait_time = 20 * (attempt + 1)
+                # 遇到限速，等待後重試 (更加激進的退避)
+                wait_time = 30 * (attempt + 1)
                 print(f"  > [AI] ⚠️ 觸發限速 (429)，等待 {wait_time} 秒後重試 ({attempt+1}/{max_retries})...")
                 time.sleep(wait_time)
                 continue
@@ -115,59 +115,11 @@ def call_openrouter(model, messages, temperature=0.3):
                 
         except Exception as e:
             print(f"  > [AI] Request Error: {e}")
-            time.sleep(5)
+            time.sleep(10)
             continue
             
     print("  > [AI] ❌ 重試多次失敗，放棄此條目。")
     return None
-
-# ... (init_investment_db, init_supabase_client, resolve_google_news_url, clean_text 保持不變) ...
-# ...
-# 請在 process_latest_news 內的迴圈尾端加入休息時間
-
-def process_latest_news():
-    # ... (前面代碼不變) ...
-    # ...
-    # 在迴圈內分析部分:
-
-    for row in all_rows:
-        # 檢查是否已處理過 (略)
-        # ...
-
-        print(f"  > [AI Filter] 正在分析: {row['title'][:30]}...")
-        analysis = analyze_news_item(row['title'])
-        
-        # === 關鍵修改：強制休息 ===
-        # OpenRouter 免費版限制約 20 req/min，所以每次休息 4 秒 + 執行時間，剛好安全
-        time.sleep(10) 
-        # ========================
-
-        if not analysis:
-            continue
-            
-        # ... (後續處理代碼不變) ...
-
-
-def init_investment_db():
-    """初始化本地投資新聞資料庫"""
-    conn = sqlite3.connect(INVESTMENT_DB)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS processed_news (
-            original_id INTEGER,
-            platform_name TEXT,
-            title TEXT,
-            url TEXT,
-            score INTEGER,
-            category TEXT,
-            analysis TEXT,
-            crawl_time TEXT,
-            processed_at TEXT,
-            PRIMARY KEY (original_id, platform_name)
-        )
-    ''')
-    conn.commit()
-    conn.close()
 
 # ==================== Supabase 整合 ====================
 def init_supabase_client() -> Optional['Client']:
@@ -449,6 +401,11 @@ def process_latest_news():
         print(f"  > [AI Filter] 正在分析: {row['title'][:30]}...")
         analysis = analyze_news_item(row['title'])
         
+        # === 關鍵修改：強制休息 ===
+        # OpenRouter 免費版限制約 20 req/min，所以每次休息 10 秒 + 執行時間，剛好安全
+        time.sleep(10) 
+        # ========================
+
         if not analysis:
             continue
             
