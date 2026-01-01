@@ -1,25 +1,79 @@
-# --- step39_news_filter.py (Standalone Version) ---
+# --- step39_news_filter.py (Truly Standalone Version) ---
 """
 Vestra Data Utility Engine - AI 新聞過濾與評分模組
-Standalone 版本：內建 AI 呼叫邏輯，不依賴 llm_core，避免 CI/CD 環境問題。
+Standalone 版本：內建 AI 呼叫 + R2 下載邏輯，不依賴任何外部專案檔。
 """
 
-import sqlite3
-import os
-import json
 import sqlite3
 import os
 import json
 import requests
 import re
 import base64
-import time  # 1. 新增 time 模組
+import time
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
-# ... (中間 import 和配置區保持不變) ...
+# R2 下載功能需要 boto3
+try:
+    import boto3
+    from botocore.client import Config
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    print("  > [System] 未安裝 boto3，無法從 R2 下載數據。")
 
-# ==================== 內建 AI 核心 (Mini) ====================
+# Supabase 整合
+try:
+    from supabase import create_client, Client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+
+# 配置區
+INVESTMENT_DB = "investment_news.db"
+DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
+MIN_SCORE_THRESHOLD = 5
+
+# ==================== 1. 內建 R2 下載功能 ====================
+def download_from_r2(date_str, db_type='news'):
+    """從 R2 下載指定日期的資料庫 (內建版)"""
+    if not BOTO3_AVAILABLE:
+        return None
+        
+    # 從環境變數讀取配置
+    r2_endpoint = os.environ.get("S3_ENDPOINT_URL")
+    r2_key_id = os.environ.get("S3_ACCESS_KEY_ID")
+    r2_secret = os.environ.get("S3_SECRET_ACCESS_KEY")
+    bucket_name = os.environ.get("S3_BUCKET_NAME", "trendradar-news")
+    
+    if not (r2_endpoint and r2_key_id and r2_secret):
+        print("  > [R2] 缺少 R2 環境變數 (S3_ENDPOINT_URL 等)")
+        return None
+
+    try:
+        s3 = boto3.client('s3',
+            endpoint_url=r2_endpoint,
+            aws_access_key_id=r2_key_id,
+            aws_secret_access_key=r2_secret,
+            config=Config(signature_version='s3v4'),
+            region_name='auto'
+        )
+        
+        file_name = f'trendradar_{db_type}_{date_str}.db'
+        object_key = f'{db_type}/{date_str}.db'
+        local_path = file_name
+        
+        print(f"  > [R2] 正在下載: {object_key} -> {local_path} ...")
+        s3.download_file(bucket_name, object_key, local_path)
+        print(f"  > [R2] ✅ 下載成功: {local_path}")
+        return local_path
+        
+    except Exception as e:
+        print(f"  > [R2] ⚠️ 下載失敗 ({object_key}): {e}")
+        return None
+
+# ==================== 2. 內建 AI 核心 (Rate Limited) ====================
 def initialize_services():
     """為了相容性保留，實際上不需要做太多事"""
     pass
