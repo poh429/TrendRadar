@@ -105,7 +105,7 @@ def call_openrouter(model, messages, temperature=0.3):
                 return res.json()['choices'][0]['message']['content']
             elif res.status_code == 429:
                 # 遇到限速，等待後重試
-                wait_time = 10 * (attempt + 1)
+                wait_time = 20 * (attempt + 1)
                 print(f"  > [AI] ⚠️ 觸發限速 (429)，等待 {wait_time} 秒後重試 ({attempt+1}/{max_retries})...")
                 time.sleep(wait_time)
                 continue
@@ -139,7 +139,7 @@ def process_latest_news():
         
         # === 關鍵修改：強制休息 ===
         # OpenRouter 免費版限制約 20 req/min，所以每次休息 4 秒 + 執行時間，剛好安全
-        time.sleep(4) 
+        time.sleep(10) 
         # ========================
 
         if not analysis:
