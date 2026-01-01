@@ -7,32 +7,17 @@ Standalone 版本：內建 AI 呼叫邏輯，不依賴 llm_core，避免 CI/CD �
 import sqlite3
 import os
 import json
+import sqlite3
+import os
+import json
 import requests
 import re
 import base64
+import time  # 1. 新增 time 模組
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 
-# 移除 llm_core 依賴
-# from llm_core import call_openrouter, initialize_services 
-
-try:
-    from view_trendradar_news import download_from_r2
-except ImportError:
-    download_from_r2 = lambda date_str, db_type: None
-
-# Supabase 整合 (可選)
-try:
-    from supabase import create_client, Client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-    print("  > [Supabase] 未安裝 supabase-py，將略過雲端同步。")
-
-# 配置區
-INVESTMENT_DB = "investment_news.db"
-DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
-MIN_SCORE_THRESHOLD = 5
+# ... (中間 import 和配置區保持不變) ...
 
 # ==================== 內建 AI 核心 (Mini) ====================
 def initialize_services():
@@ -40,33 +25,74 @@ def initialize_services():
     pass
 
 def call_openrouter(model, messages, temperature=0.3):
-    """內建簡易版 OpenRouter Caller"""
+    """內建簡易版 OpenRouter Caller (含重試機制)"""
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         print("  > [AI] ❌ 缺少 OPENROUTER_API_KEY")
         return None
+    
+    # 定義重試次數
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            res = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "HTTP-Referer": "http://localhost:8501",
+                    "X-Title": "Vestra AI Filter"
+                },
+                json={"model": model, "messages": messages, "temperature": temperature},
+                timeout=60
+            )
+            
+            if res.status_code == 200: 
+                return res.json()['choices'][0]['message']['content']
+            elif res.status_code == 429:
+                # 遇到限速，等待後重試
+                wait_time = 10 * (attempt + 1)
+                print(f"  > [AI] ⚠️ 觸發限速 (429)，等待 {wait_time} 秒後重試 ({attempt+1}/{max_retries})...")
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f"  > [AI] API Error: {res.text}")
+                return None
+                
+        except Exception as e:
+            print(f"  > [AI] Request Error: {e}")
+            time.sleep(5)
+            continue
+            
+    print("  > [AI] ❌ 重試多次失敗，放棄此條目。")
+    return None
+
+# ... (init_investment_db, init_supabase_client, resolve_google_news_url, clean_text 保持不變) ...
+# ...
+# 請在 process_latest_news 內的迴圈尾端加入休息時間
+
+def process_latest_news():
+    # ... (前面代碼不變) ...
+    # ...
+    # 在迴圈內分析部分:
+
+    for row in all_rows:
+        # 檢查是否已處理過 (略)
+        # ...
+
+        print(f"  > [AI Filter] 正在分析: {row['title'][:30]}...")
+        analysis = analyze_news_item(row['title'])
         
-    try:
-        res = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {key}",
-                "HTTP-Referer": "http://localhost:8501",
-                "X-Title": "Vestra AI Filter"
-            },
-            json={"model": model, "messages": messages, "temperature": temperature},
-            timeout=60
-        )
-        
-        if res.status_code == 200: 
-            return res.json()['choices'][0]['message']['content']
-        else:
-            print(f"  > [AI] API Error: {res.text}")
-            return None
-    except Exception as e:
-        print(f"  > [AI] Request Limit or Error: {e}")
-        return None
-# ============================================================
+        # === 關鍵修改：強制休息 ===
+        # OpenRouter 免費版限制約 20 req/min，所以每次休息 4 秒 + 執行時間，剛好安全
+        time.sleep(4) 
+        # ========================
+
+        if not analysis:
+            continue
+            
+        # ... (後續處理代碼不變) ...
+
 
 def init_investment_db():
     """初始化本地投資新聞資料庫"""
