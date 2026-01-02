@@ -386,7 +386,7 @@ def process_latest_news():
                 FROM {table_name} n
                 LEFT JOIN {platform_table} p ON n.{platform_id_col} = p.id
                 ORDER BY n.id DESC
-                LIMIT 200
+                LIMIT 50
             """)
             rows = cursor_raw.fetchall()
             
