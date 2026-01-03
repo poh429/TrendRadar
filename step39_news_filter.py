@@ -104,8 +104,8 @@ def call_openrouter(model, messages, temperature=0.3):
             if res.status_code == 200: 
                 return res.json()['choices'][0]['message']['content']
             elif res.status_code == 429:
-                # 遇到限速，等待後重試 (更加激進的退避)
-                wait_time = 30 * (attempt + 1)
+                # 遇到限速，等待後重試 (縮短退避時間)
+                wait_time = 10 * (attempt + 1)
                 print(f"  > [AI] ⚠️ 觸發限速 (429)，等待 {wait_time} 秒後重試 ({attempt+1}/{max_retries})...")
                 time.sleep(wait_time)
                 continue
@@ -361,10 +361,14 @@ def process_latest_news():
     print(f"  > [AI Filter] 將處理以下資料庫: {db_paths}")
     init_investment_db()
     
-    # 彙整所有來源的新聞
+    # 彙整所有來源的新聞，並嚴格限制總量
     all_rows = []
+    GLOBAL_LIMIT = 30  # 全局總限制 (避免超時)
     
     for db_path in db_paths:
+        if len(all_rows) >= GLOBAL_LIMIT:
+            break
+            
         try:
             print(f"  > [AI Filter] 讀取 {db_path} ...")
             conn_raw = sqlite3.connect(db_path)
@@ -380,30 +384,33 @@ def process_latest_news():
             platform_table = "rss_feeds" if is_rss else "platforms"
             platform_id_col = "feed_id" if is_rss else "platform_id"
             
+            # 計算剩餘額度
+            remaining_limit = GLOBAL_LIMIT - len(all_rows)
+            
             # 取得新聞
             cursor_raw.execute(f"""
                 SELECT n.id, n.title, n.url, n.first_crawl_time, p.name as platform_name 
                 FROM {table_name} n
                 LEFT JOIN {platform_table} p ON n.{platform_id_col} = p.id
                 ORDER BY n.id DESC
-                LIMIT 50
+                LIMIT {remaining_limit}
             """)
             rows = cursor_raw.fetchall()
             
             # 將 row 轉換為 dict 並加上來源標記，方便後續處理
             for r in rows:
                 item = dict(r)
-                item['source_db'] = source_label
-                # 若 RSS 的 platform_name 為空，使用預設值
-                if not item['platform_name']:
-                    item['platform_name'] = f"{source_label}_Feed"
+                # 統一時間欄位
+                item['created_at'] = item['first_crawl_time'] 
+                item['source'] = f"{source_label}-{item['platform_name']}"
                 all_rows.append(item)
                 
             conn_raw.close()
+            
         except Exception as e:
-            print(f"  > [AI Filter] ⚠️ 讀取 {db_path} 失敗: {e}")
+            print(f"  > [Data Source] 讀取 {db_path} 錯誤: {e}")
 
-    print(f"  > [AI Filter] 共取得 {len(all_rows)} 條原始新聞，準備進行分析...")
+    print(f"  > [AI Filter] 共取得 {len(all_rows)} 條原始新聞 (Global Limit: {GLOBAL_LIMIT})，準備進行分析...")
 
     # 連接到輸出庫
     conn_inv = sqlite3.connect(INVESTMENT_DB)
