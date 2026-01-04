@@ -322,7 +322,16 @@ def analyze_news_item(title: str) -> Dict:
         # 清理可能的 markdown 標籤
         clean_json = response.replace("```json", "").replace("```", "").strip()
         data = json.loads(clean_json)
-        return data
+        
+        # 如果 AI 回傳的是 list，取第一個元素
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+        
+        # 確保有必要的欄位
+        if isinstance(data, dict) and 'score' in data:
+            return data
+        
+        return None
     except Exception as e:
         print(f"  > [AI Filter] 分析失敗: {e}")
         return None
