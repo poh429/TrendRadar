@@ -32,7 +32,14 @@ except ImportError:
 
 # 配置區
 INVESTMENT_DB = "investment_news.db"
-DEFAULT_MODEL = "google/gemini-2.0-flash-exp:free"
+# 免費模型優先順序列表 (當遇到 429 時自動切換)
+FREE_MODELS = [
+    "google/gemini-2.0-flash-exp:free",      # 首選：Google 最新、速度快
+    "google/gemma-3-27b-it:free",            # 備選：Google Gemma 27B
+    "meta-llama/llama-3.3-70b-instruct:free", # 備選：Meta Llama 3.3
+    "meta-llama/llama-3.1-405b-instruct:free", # 備選：Meta 最大模型
+]
+DEFAULT_MODEL = FREE_MODELS[0]
 MIN_SCORE_THRESHOLD = 5
 
 # ==================== 1. 內建 R2 下載功能 ====================
@@ -79,46 +86,61 @@ def initialize_services():
     pass
 
 def call_openrouter(model, messages, temperature=0.3):
-    """內建簡易版 OpenRouter Caller (含重試機制)"""
+    """
+    內建 OpenRouter Caller (含多模型 Fallback 機制)
+    當遇到 429 限速時，自動切換到下一個免費模型嘗試
+    """
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         print("  > [AI] ❌ 缺少 OPENROUTER_API_KEY")
         return None
     
-    # 定義重試次數
-    max_retries = 3
+    # 建立要嘗試的模型列表 (從傳入的 model 開始)
+    models_to_try = [model]
+    for m in FREE_MODELS:
+        if m not in models_to_try:
+            models_to_try.append(m)
     
-    for attempt in range(max_retries):
-        try:
-            res = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "HTTP-Referer": "http://localhost:8501",
-                    "X-Title": "Vestra AI Filter"
-                },
-                json={"model": model, "messages": messages, "temperature": temperature},
-                timeout=60
-            )
-            
-            if res.status_code == 200: 
-                return res.json()['choices'][0]['message']['content']
-            elif res.status_code == 429:
-                # 遇到限速，等待後重試 (縮短退避時間)
-                wait_time = 10 * (attempt + 1)
-                print(f"  > [AI] ⚠️ 觸發限速 (429)，等待 {wait_time} 秒後重試 ({attempt+1}/{max_retries})...")
-                time.sleep(wait_time)
-                continue
-            else:
-                print(f"  > [AI] API Error: {res.text}")
-                return None
+    # 嘗試每個模型
+    for current_model in models_to_try:
+        max_retries = 2  # 每個模型最多重試 2 次
+        
+        for attempt in range(max_retries):
+            try:
+                res = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "HTTP-Referer": "http://localhost:8501",
+                        "X-Title": "Vestra AI Filter"
+                    },
+                    json={"model": current_model, "messages": messages, "temperature": temperature},
+                    timeout=60
+                )
                 
-        except Exception as e:
-            print(f"  > [AI] Request Error: {e}")
-            time.sleep(10)
-            continue
-            
-    print("  > [AI] ❌ 重試多次失敗，放棄此條目。")
+                if res.status_code == 200: 
+                    return res.json()['choices'][0]['message']['content']
+                elif res.status_code == 429:
+                    if attempt < max_retries - 1:
+                        wait_time = 5 * (attempt + 1)
+                        print(f"  > [AI] ⚠️ {current_model.split('/')[1][:15]} 限速，等待 {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        # 此模型重試完畢，嘗試下一個模型
+                        next_idx = models_to_try.index(current_model) + 1
+                        if next_idx < len(models_to_try):
+                            print(f"  > [AI] 🔄 切換模型: {models_to_try[next_idx].split('/')[1][:20]}")
+                        break
+                else:
+                    print(f"  > [AI] API Error ({res.status_code}): {res.text[:100]}")
+                    return None
+                    
+            except Exception as e:
+                print(f"  > [AI] Request Error: {e}")
+                time.sleep(5)
+                continue
+    
+    print("  > [AI] ❌ 所有模型皆失敗，放棄此條目。")
     return None
 
 # ==================== Supabase 整合 ====================
@@ -398,10 +420,9 @@ def process_latest_news():
         print(f"  > [AI Filter] 正在分析: {row['title'][:30]}...")
         analysis = analyze_news_item(row['title'])
         
-        # === 關鍵修改：強制休息 ===
-        # OpenRouter 免費版限制約 20 req/min，所以每次休息 10 秒 + 執行時間，剛好安全
-        time.sleep(10) 
-        # ========================
+        # === 請求間隔 ===
+        # 避免觸發 OpenRouter 每分鐘請求限制
+        time.sleep(10)
 
         if not analysis:
             continue
