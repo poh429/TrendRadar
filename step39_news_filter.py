@@ -463,6 +463,32 @@ def process_latest_news():
         if high_value_news:
             synced_count = sync_to_supabase(supabase, high_value_news)
             print(f"\n☁️ Supabase 同步完成！共推送 {synced_count} 條高價值新聞。")
+            
+            # ===== 清理舊資料 (保留 7 天 + 最多 100 條) =====
+            try:
+                from datetime import timedelta
+                cutoff_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                
+                # 1. 刪除超過 7 天的舊新聞
+                supabase.table("ai_news").delete().lt("created_at", cutoff_date).execute()
+                print(f"  > [Cleanup] 已刪除 {cutoff_date} 之前的舊新聞")
+                
+                # 2. 如果超過 100 條，只保留最新的 100 條
+                result = supabase.table("ai_news").select("id", count="exact").execute()
+                total_count = result.count if result.count else 0
+                
+                if total_count > 100:
+                    # 取得第 101 條之後的 ID 並刪除
+                    old_records = supabase.table("ai_news").select("id").order("created_at", desc=True).range(100, total_count).execute()
+                    old_ids = [r['id'] for r in old_records.data] if old_records.data else []
+                    
+                    if old_ids:
+                        for old_id in old_ids:
+                            supabase.table("ai_news").delete().eq("id", old_id).execute()
+                        print(f"  > [Cleanup] 已刪除超過 100 條限制的 {len(old_ids)} 條舊新聞")
+                        
+            except Exception as cleanup_err:
+                print(f"  > [Cleanup] 清理時發生錯誤: {cleanup_err}")
         else:
             print("\n☁️ 今日無新增高價值新聞需同步至 Supabase。")
 
