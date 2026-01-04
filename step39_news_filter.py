@@ -34,10 +34,16 @@ except ImportError:
 INVESTMENT_DB = "investment_news.db"
 # 免費模型優先順序列表 (當遇到 429 時自動切換)
 FREE_MODELS = [
-    "google/gemini-2.0-flash-exp:free",      # 首選：Google 最新、速度快
-    "google/gemma-3-27b-it:free",            # 備選：Google Gemma 27B
-    "meta-llama/llama-3.3-70b-instruct:free", # 備選：Meta Llama 3.3
-    "meta-llama/llama-3.1-405b-instruct:free", # 備選：Meta 最大模型
+    "google/gemini-2.0-flash-exp:free",       # 首選：Google 最新、速度快
+    "xiaomi/mimo-v2-flash:free",              # 小米 MoE 309B，推理能力頂級
+    "tngtech/deepseek-r1t2-chimera:free",     # DeepSeek R1T2 Chimera (671B MoE)
+    "nex-agi/nex-n1-deepseek-v3.1:free",      # DeepSeek V3.1 旗艦系列
+    "google/gemma-3-27b-it:free",             # Google Gemma 27B
+    "meta-llama/llama-3.3-70b-instruct:free", # Meta Llama 3.3
+    "meta-llama/llama-3.1-405b-instruct:free", # Meta 最大模型
+    "nvidia/nemotron-3-nano-30b-a3b:free",    # NVIDIA 30B MoE (高效率)
+    "mistralai/devstral-2-2512:free",         # Mistral 123B (Coding 專家)
+    "kwaipilot/kat-coder-pro:free",           # KAT-Coder-Pro (Agentic Coding)
 ]
 DEFAULT_MODEL = FREE_MODELS[0]
 MIN_SCORE_THRESHOLD = 5
