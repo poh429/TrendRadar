@@ -369,7 +369,7 @@ def process_latest_news():
     
     # 彙整所有來源的新聞，並嚴格限制總量
     all_rows = []
-    GLOBAL_LIMIT = 30  # 全局總限制 (避免超時)
+    GLOBAL_LIMIT = 60  # 全局總限制 (每次最多處理 60 條)
     
     for db_path in db_paths:
         if len(all_rows) >= GLOBAL_LIMIT:
