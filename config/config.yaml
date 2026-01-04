@@ -1,5 +1,5 @@
 project_name: "TrendRadar_Investment"
-version: "3.5.0"
+version: "3.6.0"
 
 crawler:
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -9,36 +9,43 @@ crawler:
 rss:
   enabled: true
   feeds:
-    # --- Taiwan Market ---
-    # MoneyDJ (Tw Stock Focus)
-    - name: "MoneyDJ_TW"
-      url: "https://news.google.com/rss/search?q=site:moneydj.com&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
-      category: "Finance"
+    # ===== Taiwan Market (Direct URL Sources) =====
     
-    # Yahoo Stock (Native RSS)
+    # Yahoo 台股新聞 (Native RSS, Direct URLs)
     - name: "Yahoo_TW_Market"
       url: "https://tw.stock.yahoo.com/rss?category=tw-market"
       category: "Finance"
-      
-    # Google News - TSMC & Semis (Specific Keyword)
-    - name: "TW_Semiconductor"
-      url: "https://news.google.com/rss/search?q=%E5%8F%B0%E7%A9%8D%E9%9B%BB+OR+%E8%81%AF%E7%99%BC%E7%A7%91+OR+%E5%8D%8A%E5%B0%8E%E9%AB%94+when:1d&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
-      category: "Tech"
+    
+    # Yahoo 國際財經 (Native RSS, Direct URLs)
+    - name: "Yahoo_Global"
+      url: "https://tw.stock.yahoo.com/rss?category=intl-markets"
+      category: "Global"
+    
+    # 鉅亨網 - 台股 (Native RSS, Direct URLs)
+    - name: "Cnyes_TW"
+      url: "https://news.cnyes.com/api/v3/news/category/tw_stock?startAt=0&limit=20"
+      category: "Finance"
+    
+    # 鉅亨網 - 國際 (Native RSS, Direct URLs)
+    - name: "Cnyes_Global"
+      url: "https://news.cnyes.com/api/v3/news/category/wd_stock?startAt=0&limit=20"
+      category: "Global"
 
-    # --- US Market (Global Impact) ---
-    # CNBC Top News (US Market)
+    # ===== US Market (Direct URL Sources) =====
+    
+    # CNBC Top News (Native RSS, Direct URLs)
     - name: "CNBC_US"
       url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"
       category: "Global"
 
-    # TechCrunch (AI & Startups)
-    - name: "TechCrunch_AI"
-      url: "https://techcrunch.com/category/artificial-intelligence/feed/"
+    # CNBC Technology (Native RSS, Direct URLs)
+    - name: "CNBC_Tech"
+      url: "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"
       category: "Tech"
 
-    # Google News - US Tech Giants (Nvidia, Apple, MSFT)
-    - name: "US_Tech_Giants"
-      url: "https://news.google.com/rss/search?q=NVIDIA+OR+Apple+OR+Microsoft+OR+AMD+when:1d&hl=en-US&gl=US&ceid=US:en"
+    # TechCrunch AI (Native RSS, Direct URLs)
+    - name: "TechCrunch_AI"
+      url: "https://techcrunch.com/category/artificial-intelligence/feed/"
       category: "Tech"
 
 report:
