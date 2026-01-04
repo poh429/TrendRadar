@@ -143,47 +143,15 @@ def init_supabase_client() -> Optional['Client']:
         return None
 
 def resolve_google_news_url(url: str) -> str:
-    """嘗試解析 Google News 轉址連結為原始 URL (模擬瀏覽器 + 頁面內容解析)"""
-    if "news.google.com" not in url:
-        return url
+    """
+    Google News URL 處理
     
-    try:
-        session = requests.Session()
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Referer": "https://news.google.com/",
-        }
-        
-        # 1. 嘗試 HTTP 請求
-        resp = session.get(url, headers=headers, allow_redirects=True, timeout=10)
-        
-        # 2. 檢查是否已經跳轉離開 google
-        if "news.google.com" not in resp.url:
-            return resp.url
-        
-        # 3. 如果還在 google，嘗試從內容中尋找目標連結
-        # 很多時候 google 會回傳一個頁面，中間有一個 <a href="..."> 或 <noscript>
-        content = resp.text
-        
-        # 策略 A: 找 <a href="..." jsname="..."> (Google 常見的跳轉按鈕)
-        # 尋找所有連結，並排除 google 自身的連結
-        links = re.findall(r'href="([^"]+)"', content)
-        candidates = [l for l in links if l.startswith('http') and "google.com" not in l and "google.cn" not in l]
-        
-        if candidates:
-            # print(f"    [Page Parse] Found: {candidates[0][:50]}...")
-            return candidates[0]
-            
-        # 策略 B: 找 window.location.replace("...")
-        js_redirect = re.search(r'window\.location\.replace\("([^"]+)"\)', content)
-        if js_redirect:
-            return js_redirect.group(1)
-
-    except Exception:
-        pass
-
-    # 失敗回傳原網址
+    經測試確認：Google News RSS URL (如 /articles/CBMi...) 
+    在瀏覽器中點擊時會自動重導向到原始新聞網站。
+    
+    因此不需要複雜的解碼邏輯，直接返回原 URL 即可。
+    使用者在 Lovable 前端點擊連結時，瀏覽器會自動處理重導向。
+    """
     return url
 
 def clean_text(text: str) -> str:
@@ -290,14 +258,14 @@ def analyze_news_item(title: str) -> Dict:
     messages = [
         {
             "role": "system", 
-            "content": "你是一位專業的證券分析師。請分析新聞標題，並給出投資價值評分與板塊歸類。嚴格以 JSON 格式回覆。"
+            "content": "你是一位專精於「台股」與「美股」的首席投資分析師。你的任務是從雜亂的新聞中，篩選出對台灣股市(TWSE)或美國股市(NASDAQ/NYSE/S&P)有實質影響的情報。嚴格以 JSON 格式回覆。"
         },
         {
             "role": "user", 
             "content": f"""
 新聞標題："{title}"
 
-請以嚴格的「投資人視角」進行分析，回覆 JSON：
+請以嚴格的「台/美股投資人視角」進行分析，回覆 JSON：
 {{
   "score": 1-10 (整數),
   "category": "半導體" | "AI/科技" | "金融" | "傳產/航運" | "生技" | "宏觀/政策" | "其它",
@@ -305,15 +273,16 @@ def analyze_news_item(title: str) -> Dict:
 }}
 
 # 評分標準 (Score):
-- **10分 (Market Mover)**: 重大突發(如戰爭/降息)、台積電/輝達財報暴雷或驚喜、國家級政策變動。
-- **8-9分 (High Impact)**: 權值股營收創新高/低、大型併購、產業龍頭漲跌停。
-- **6-7分 (Moderate)**: 一般個股財報、法說會消息、外資升降評、產業趨勢新聞。
-- **4-5分 (Low)**: 個股盤中波動、例行性營收公告(無驚喜)、股東會流水帳。
-- **1-3分 (Noise)**: 廣告、花邊新聞、與經濟無關的政治口水、農場標題。
+- **10分 (Market Mover)**: 重大突發(如戰爭/Fed降息)、台積電/輝達/蘋果/AMD財報暴雷或驚喜、國家級政策直接影響供應鏈。
+- **8-9分 (High Impact)**: 台/美權值股(如鴻海, 聯發科, Tesla, MSFT)營收與動態、大型併購。
+- **6-7分 (Moderate)**: 半導體/AI供應鏈消息、美股科技巨頭動態、同業競爭、關鍵原物料價格。
+- **4-5分 (Low)**: 一般個股波動、非核心產業(如陸股白酒/內需)、例行性公告。
+- **1-3分 (Noise)**: **中國內地社會新聞(如社會案件)**、**與台美股無關的政治口水**、廣告、純娛樂、體育。
 
-# 注意事項:
-- 若標題包含「盤中速報」、「股價拉至漲停」等，視為即時行情，給予 4-5 分（除非是權值股如台積電/鴻海則更高）。
-- 嚴格過濾非財經類新聞 (如娛樂、體育)，直接給 1 分。
+# 關鍵過濾規則:
+1. **主要關注**: 台灣企業、美國科技巨頭、全球宏觀經濟(通膨/油價/美債)。
+2. **自動降級**: 若新聞僅涉及「中國A股特定板塊(如茅台、A股內資)」且無全球影響力，請給予 3 分以下。
+3. **噪音剔除**: 社會案件(如殺人/車禍)、非財經類政治新聞(無經濟制裁內容)，一律 1 分。
 """
         }
     ]
